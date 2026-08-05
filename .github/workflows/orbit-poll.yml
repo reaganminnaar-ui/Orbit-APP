@@ -1,0 +1,22 @@
+name: Poll Orbit
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake Orbit and run checks
+        env:
+          ORBIT_URL: ${{ secrets.ORBIT_URL }}
+          POLL_SECRET: ${{ secrets.POLL_SECRET }}
+        run: |
+          curl --fail --show-error --silent \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --max-time 180 \
+            -X POST \
+            -H "Authorization: Bearer $POLL_SECRET" \
+            "$ORBIT_URL/poll"
