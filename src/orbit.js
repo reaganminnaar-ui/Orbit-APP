@@ -5,6 +5,7 @@ import { notify } from "./notifiers.js";
 export async function runOrbit(config, jamf, now = new Date()) {
   const store = stateStore(config);
   const state = await store.load();
+  const isFirstRun = !state.lastRunAt;
   const computers = await jamf.computers();
   let alerts = [];
   if (config.enabled.staleDevices) alerts.push(...staleDeviceAlerts(computers, config.staleDeviceDays, now));
@@ -14,8 +15,18 @@ export async function runOrbit(config, jamf, now = new Date()) {
     for (const result of batches) result.status === "fulfilled" ? alerts.push(...result.value) : console.error("Policy log check failed:", result.reason);
   }
   let sent = 0;
-  for (const alert of alerts) if (shouldSend(state, alert, config.alertCooldownMs, now.getTime())) { await notify(config, alert); state.alerts[alert.key] = now.toISOString(); sent++; }
+  for (const alert of alerts) {
+    if (!shouldSend(state, alert, config.alertCooldownMs, now.getTime())) continue;
+
+    // The first successful scan establishes a baseline. Record every existing
+    // condition without notifying so a new installation cannot flood Slack.
+    if (!isFirstRun) {
+      await notify(config, alert);
+      sent++;
+    }
+    state.alerts[alert.key] = now.toISOString();
+  }
   state.lastRunAt = now.toISOString();
   await store.save(state);
-  return { checked: computers.length, detected: alerts.length, sent };
+  return { checked: computers.length, detected: alerts.length, sent, baselineCreated: isFirstRun };
 }
