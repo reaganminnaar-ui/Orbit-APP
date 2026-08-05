@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: orbit-jamf-alerts
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: STATE_BACKEND
+        value: supabase
+      - key: RUN_ON_START
+        value: "false"
+      - key: INTERNAL_SCHEDULER
+        value: "false"
+      - key: JAMF_BASE_URL
+        sync: false
+      - key: JAMF_CLIENT_ID
+        sync: false
+      - key: JAMF_CLIENT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: POLL_SECRET
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_TO
+        sync: false
+      - key: POLL_INTERVAL_MINUTES
+        value: 15
+      - key: STALE_DEVICE_DAYS
+        value: 7
+      - key: POLICY_LOOKBACK_MINUTES
+        value: 30
+      - key: ALERT_COOLDOWN_HOURS
+        value: 24
