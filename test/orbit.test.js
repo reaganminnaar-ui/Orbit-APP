@@ -39,3 +39,23 @@ test("first run creates a silent alert baseline", async () => {
     Date.now = originalNow;
   }
 });
+
+test("routine OS upgrades are counted for digest but not sent immediately", async () => {
+  const originalFetch = global.fetch;
+  let notifications = 0;
+  global.fetch = async () => { notifications++; return { ok: true }; };
+  const stateFile = `/tmp/orbit-test-${process.pid}-${Math.random()}.json`;
+  const testConfig = { ...config(), stateFile, enabled: { staleDevices: false, inventoryChanges: true, failedPolicies: false } };
+  const jamf = { computers: async () => [{ id: "1", general: { name: "Mac" }, operatingSystem: { version: "26.5.2" } }] };
+  try {
+    await runOrbit(testConfig, jamf, new Date("2026-08-05T12:00:00Z"));
+    jamf.computers = async () => [{ id: "1", general: { name: "Mac" }, operatingSystem: { version: "26.6" } }];
+    const result = await runOrbit(testConfig, jamf, new Date("2026-08-06T12:00:00Z"));
+    assert.equal(result.detected, 1);
+    assert.equal(result.digest, 1);
+    assert.equal(result.sent, 0);
+    assert.equal(notifications, 0);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

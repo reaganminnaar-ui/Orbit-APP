@@ -14,9 +14,15 @@ export async function runOrbit(config, jamf, now = new Date()) {
     const batches = await Promise.allSettled(computers.map(async c => failedPolicyAlerts(c, await jamf.policyLogs(c.id), config.policyLookbackMinutes, now)));
     for (const result of batches) result.status === "fulfilled" ? alerts.push(...result.value) : console.error("Policy log check failed:", result.reason);
   }
-  let sent = 0;
+  let sent = 0, digest = 0;
   for (const alert of alerts) {
     if (!shouldSend(state, alert, config.alertCooldownMs, now.getTime())) continue;
+
+    if (alert.notificationClass === "digest") {
+      digest++;
+      state.alerts[alert.key] = now.toISOString();
+      continue;
+    }
 
     // The first successful scan establishes a baseline. Record every existing
     // condition without notifying so a new installation cannot flood Slack.
@@ -28,5 +34,5 @@ export async function runOrbit(config, jamf, now = new Date()) {
   }
   state.lastRunAt = now.toISOString();
   await store.save(state);
-  return { checked: computers.length, detected: alerts.length, sent, baselineCreated: isFirstRun };
+  return { checked: computers.length, detected: alerts.length, sent, digest, baselineCreated: isFirstRun };
 }
