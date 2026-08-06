@@ -3,17 +3,21 @@ import { loadConfig } from "./config.js";
 import { JamfClient } from "./jamf.js";
 import { collectIncydrStatus, incydrOperationalView, IncydrClient } from "./incydr.js";
 import { runOrbit } from "./orbit.js";
+import { correlateDevices } from "./devices.js";
 
 const config = loadConfig();
 const jamf = new JamfClient(config);
 const incydr = config.incydr.url ? new IncydrClient(config) : null;
-let running = false, lastResult = null, lastError = null, incydrAgents = [];
+let running = false, lastResult = null, lastError = null, incydrAgents = [], jamfDevices = [];
 
 async function tick() {
   if (running) return;
   running = true;
   try {
-    lastResult = await runOrbit(config, jamf);
+    const orbitResult = await runOrbit(config, jamf);
+    jamfDevices = orbitResult.devices;
+    delete orbitResult.devices;
+    lastResult = orbitResult;
     lastError = null;
     if (incydr) {
       try {
@@ -52,6 +56,25 @@ createServer(async (request, response) => {
     });
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" });
     response.end(JSON.stringify({ ok: true, checkedAt: lastResult?.incydr?.checkedAt ?? null, alertsEnabled: view.alertsEnabled, policy: view.policy, counts: view.counts, total: agents.length, agents }));
+    return;
+  }
+  if (requestUrl.pathname === "/api/devices" && request.method === "GET") {
+    if (request.headers.authorization !== `Bearer ${config.pollSecret}`) {
+      response.writeHead(401, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: false, error: "Unauthorized" }));
+      return;
+    }
+    const correlated = correlateDevices(jamfDevices, incydrOperationalView(incydrAgents, config.incydr).agents);
+    const status = requestUrl.searchParams.get("status");
+    const query = requestUrl.searchParams.get("q")?.trim().toLowerCase();
+    const devices = correlated.devices.filter(device => {
+      if (status && status !== "all" && device.status !== status) return false;
+      if (!query) return true;
+      const values = [device.jamf?.deviceName, device.jamf?.serialNumber, device.jamf?.username, device.incydr?.deviceName, device.incydr?.serialNumber, device.incydr?.username];
+      return values.some(item => item?.toLowerCase().includes(query));
+    });
+    response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+    response.end(JSON.stringify({ ok: true, checkedAt: lastResult?.incydr?.checkedAt ?? null, counts: correlated.counts, total: devices.length, devices }));
     return;
   }
   if (requestUrl.pathname === "/poll" && request.method === "POST") {

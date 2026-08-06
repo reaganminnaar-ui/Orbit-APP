@@ -1,6 +1,7 @@
 import { failedPolicyAlerts, inventoryChangeAlerts, staleDeviceAlerts } from "./checks.js";
 import { shouldSend, stateStore } from "./state.js";
 import { notify } from "./notifiers.js";
+import { jamfDeviceDetails } from "./devices.js";
 
 export async function runOrbit(config, jamf, now = new Date()) {
   const store = stateStore(config);
@@ -34,5 +35,5 @@ export async function runOrbit(config, jamf, now = new Date()) {
   }
   state.lastRunAt = now.toISOString();
   await store.save(state);
-  return { checked: computers.length, detected: alerts.length, sent, digest, baselineCreated: isFirstRun };
+  return { checked: computers.length, detected: alerts.length, sent, digest, baselineCreated: isFirstRun, devices: jamfDeviceDetails(computers) };
 }
