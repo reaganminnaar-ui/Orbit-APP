@@ -1,16 +1,29 @@
 import { createServer } from "node:http";
 import { loadConfig } from "./config.js";
 import { JamfClient } from "./jamf.js";
+import { collectIncydrStatus, IncydrClient } from "./incydr.js";
 import { runOrbit } from "./orbit.js";
 
 const config = loadConfig();
 const jamf = new JamfClient(config);
+const incydr = config.incydr.url ? new IncydrClient(config) : null;
 let running = false, lastResult = null, lastError = null;
 
 async function tick() {
   if (running) return;
   running = true;
-  try { lastResult = await runOrbit(config, jamf); lastError = null; console.log("Orbit run complete", lastResult); }
+  try {
+    lastResult = await runOrbit(config, jamf);
+    lastError = null;
+    if (incydr) {
+      try { lastResult.incydr = await collectIncydrStatus(incydr); }
+      catch (error) {
+        lastResult.incydr = { ok: false, error: error.message, checkedAt: new Date().toISOString() };
+        console.error("Incydr read-only check failed", error);
+      }
+    }
+    console.log("Orbit run complete", lastResult);
+  }
   catch (error) { lastError = { message: error.message, at: new Date().toISOString() }; console.error("Orbit run failed", error); }
   finally { running = false; }
 }

@@ -14,6 +14,12 @@ export function loadConfig() {
     jamfBaseUrl: (process.env.JAMF_BASE_URL ?? "").replace(/\/$/, ""),
     jamfClientId: process.env.JAMF_CLIENT_ID ?? "",
     jamfClientSecret: process.env.JAMF_CLIENT_SECRET ?? "",
+    incydr: {
+      url: (process.env.INCYDR_URL ?? "").replace(/\/$/, ""),
+      clientId: process.env.INCYDR_API_CLIENT_ID ?? "",
+      clientSecret: process.env.INCYDR_API_CLIENT_SECRET ?? "",
+      pageSize: number("INCYDR_PAGE_SIZE", 500)
+    },
     slackWebhookUrl: process.env.SLACK_WEBHOOK_URL ?? "",
     smtp: {
       host: process.env.SMTP_HOST ?? "",
@@ -44,6 +50,10 @@ export function loadConfig() {
   };
   const missing = ["jamfBaseUrl", "jamfClientId", "jamfClientSecret"].filter(k => !config[k]);
   if (missing.length) throw new Error(`Missing Jamf configuration: ${missing.join(", ")}`);
+  const incydrValues = [config.incydr.url, config.incydr.clientId, config.incydr.clientSecret];
+  if (incydrValues.some(Boolean) && !incydrValues.every(Boolean)) {
+    throw new Error("INCYDR_URL, INCYDR_API_CLIENT_ID and INCYDR_API_CLIENT_SECRET must be configured together");
+  }
   if (!config.slackWebhookUrl && (!config.smtp.host || !config.smtp.from || !config.smtp.to.length)) {
     throw new Error("Configure Slack, email, or both");
   }

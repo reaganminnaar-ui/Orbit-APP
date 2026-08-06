@@ -2,6 +2,9 @@
 
 Orbit polls Jamf Pro and sends deduplicated alerts to Slack and email for failed policies, inventory/compliance changes, and devices that have stopped checking in.
 
+It can also collect read-only Mimecast Incydr agent status. Incydr runs as an
+isolated check, so its authentication or API errors cannot interrupt Jamf.
+
 The free deployment uses:
 
 - **Render Free Web Service** for the Node.js app
@@ -59,6 +62,22 @@ Open **Actions → Poll Orbit → Run workflow** for the first test. The workflo
 - `/health` exposes status but no credentials.
 - Jamf, Supabase, Slack, SMTP, and polling secrets must exist only in Render/GitHub secret stores.
 - Use a read-only Jamf API role and a test Slack channel/mailbox for the initial rollout.
+- The Incydr connector only authenticates and reads `/v1/agents`; it implements no write operations.
+
+## Incydr agent status
+
+Configure all three variables in Render:
+
+```text
+INCYDR_URL=https://api.za.code42.com
+INCYDR_API_CLIENT_ID=...
+INCYDR_API_CLIENT_SECRET=...
+```
+
+Each poll adds `lastResult.incydr` with total, active, inactive, healthy and
+unhealthy agent counts, registration-problem count, and health-issue counts. If
+Incydr fails, this object contains `ok: false` and a safe error message while the
+Jamf result remains successful.
 
 ## Local development
 
