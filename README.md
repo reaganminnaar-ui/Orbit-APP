@@ -79,6 +79,14 @@ unhealthy agent counts, registration-problem count, and health-issue counts. If
 Incydr fails, this object contains `ok: false` and a safe error message while the
 Jamf result remains successful.
 
+The normalized device-level inventory is available from `GET /api/incydr/agents`
+with the same bearer token used for `/poll`. It is intentionally excluded from
+the public `/health` response because it contains device and user identifiers.
+The endpoint supports `status`, `issue`, and `q` query filters and returns the
+proposed immediate/digest/dashboard classification. Incydr notifications remain
+disabled unless `INCYDR_ALERTS_ENABLED=true`; this release does not deliver
+Incydr messages, so the flag is a reviewed policy gate for the next phase.
+
 ## Local development
 
 Copy `.env.example` to `.env`, fill in the values, export them, then run:

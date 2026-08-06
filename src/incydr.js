@@ -19,6 +19,61 @@ function isActive(agent) {
   return agent.active !== false && agent.status !== "DEACTIVATED";
 }
 
+function firstValue(...values) {
+  return values.find(value => value !== undefined && value !== null && value !== "") ?? null;
+}
+
+function ageDays(value, now) {
+  const time = value ? Date.parse(value) : NaN;
+  return Number.isFinite(time) ? Math.max(0, Math.floor((now.getTime() - time) / 86_400_000)) : null;
+}
+
+export function incydrAgentDetails(agents, now = new Date()) {
+  return agents.map(agent => ({
+    agentId: firstValue(agent.agentId, agent.id),
+    deviceName: firstValue(agent.deviceName, agent.name, agent.computerName),
+    username: firstValue(agent.username, agent.userName, agent.user?.username, agent.user?.email),
+    serialNumber: firstValue(agent.serialNumber, agent.deviceSerialNumber),
+    operatingSystem: firstValue(agent.operatingSystem, agent.os, agent.osName),
+    agentVersion: firstValue(agent.agentVersion, agent.version),
+    active: isActive(agent),
+    registered: agent.registered !== false && agent.registrationStatus !== "PROBLEM",
+    registrationStatus: firstValue(agent.registrationStatus, agent.registered === false ? "PROBLEM" : "REGISTERED"),
+    healthy: healthIssues(agent).length === 0 && agent.agentHealthy !== false && agent.healthy !== false,
+    healthIssues: healthIssues(agent),
+    lastConnectedAt: firstValue(agent.lastConnectedAt, agent.lastConnection, agent.lastConnected),
+    lastActivityAt: firstValue(agent.lastActivityAt, agent.lastActivity, agent.lastSeen),
+    connectionAgeDays: ageDays(firstValue(agent.lastConnectedAt, agent.lastConnection, agent.lastConnected), now)
+  }));
+}
+
+export function classifyIncydrAgent(agent, config = {}) {
+  const issues = asArray(agent.healthIssues);
+  const immediateDays = config.notConnectingImmediateDays ?? 7;
+  const digestDays = config.digestAfterDays ?? 1;
+  if (issues.includes("SECURITY_INGEST_REJECTED") || issues.some(issue => issue.startsWith("MISSING_MACOS_PERMISSION_"))) return "immediate";
+  if (issues.includes("NOT_CONNECTING") && (agent.connectionAgeDays ?? 0) >= immediateDays) return "immediate";
+  if (issues.includes("NOT_SENDING_SECURITY_EVENTS") || (issues.includes("NOT_CONNECTING") && (agent.connectionAgeDays ?? 0) >= digestDays)) return "digest";
+  return "dashboard";
+}
+
+export function incydrOperationalView(details, config = {}) {
+  const agents = details.map(agent => ({ ...agent, notificationClass: classifyIncydrAgent(agent, config) }));
+  return {
+    alertsEnabled: config.alertsEnabled === true,
+    policy: {
+      immediate: ["Security ingestion rejected", "Missing required macOS permission", `Not connecting for ${config.notConnectingImmediateDays ?? 7}+ days`],
+      digest: ["Not sending security events", `Not connecting for ${config.digestAfterDays ?? 1}+ days`],
+      dashboard: ["Inactive", "Healthy", "Recently disconnected"]
+    },
+    counts: agents.reduce((counts, agent) => {
+      counts[agent.notificationClass]++;
+      return counts;
+    }, { immediate: 0, digest: 0, dashboard: 0 }),
+    agents
+  };
+}
+
 export class IncydrClient {
   constructor(config, fetchImpl = fetch) {
     this.config = config.incydr ?? config;
@@ -94,5 +149,6 @@ export function summarizeIncydrAgents(agents, checkedAt = new Date()) {
 }
 
 export async function collectIncydrStatus(client, now = new Date()) {
-  return summarizeIncydrAgents(await client.agents(), now);
+  const agents = await client.agents();
+  return { summary: summarizeIncydrAgents(agents, now), details: incydrAgentDetails(agents, now) };
 }

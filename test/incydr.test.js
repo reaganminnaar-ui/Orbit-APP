@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { IncydrClient, summarizeIncydrAgents } from "../src/incydr.js";
+import { classifyIncydrAgent, IncydrClient, incydrAgentDetails, incydrOperationalView, summarizeIncydrAgents } from "../src/incydr.js";
 
 test("authenticates and reads agents without using write methods", async () => {
   const requests = [];
@@ -36,4 +36,42 @@ test("summarizes active, unhealthy and registration-problem agents", () => {
     registrationProblems: 1,
     healthIssues: { NOT_CONNECTING: 1, NOT_SENDING_SECURITY_EVENTS: 1 }
   });
+});
+
+test("normalizes read-only device details without retaining the source object", () => {
+  const source = {
+    agentId: "agent-1",
+    deviceName: "Finance-Mac",
+    username: "user@example.com",
+    serialNumber: "SERIAL1",
+    operatingSystem: "macOS",
+    agentVersion: "11.2.0",
+    active: true,
+    registered: true,
+    agentHealthy: false,
+    agentHealthIssueTypes: ["NOT_CONNECTING"],
+    lastConnectedAt: "2026-08-01T10:00:00Z",
+    secretField: "must-not-leak"
+  };
+
+  const [detail] = incydrAgentDetails([source], new Date("2026-08-06T10:00:00Z"));
+
+  assert.equal(detail.deviceName, "Finance-Mac");
+  assert.equal(detail.operatingSystem, "macOS");
+  assert.equal(detail.healthy, false);
+  assert.deepEqual(detail.healthIssues, ["NOT_CONNECTING"]);
+  assert.equal(detail.connectionAgeDays, 5);
+  assert.equal("secretField" in detail, false);
+});
+
+test("classifies Incydr conditions while notifications remain disabled", () => {
+  const details = [
+    { healthIssues: ["NOT_CONNECTING"], connectionAgeDays: 8 },
+    { healthIssues: ["NOT_SENDING_SECURITY_EVENTS"], connectionAgeDays: 2 },
+    { healthIssues: [], connectionAgeDays: 0 }
+  ];
+  assert.equal(classifyIncydrAgent(details[0], { notConnectingImmediateDays: 7 }), "immediate");
+  const view = incydrOperationalView(details, { alertsEnabled: false, notConnectingImmediateDays: 7, digestAfterDays: 1 });
+  assert.equal(view.alertsEnabled, false);
+  assert.deepEqual(view.counts, { immediate: 1, digest: 1, dashboard: 1 });
 });

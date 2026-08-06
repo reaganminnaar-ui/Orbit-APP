@@ -18,7 +18,10 @@ export function loadConfig() {
       url: (process.env.INCYDR_URL ?? "").replace(/\/$/, ""),
       clientId: process.env.INCYDR_API_CLIENT_ID ?? "",
       clientSecret: process.env.INCYDR_API_CLIENT_SECRET ?? "",
-      pageSize: number("INCYDR_PAGE_SIZE", 500)
+      pageSize: number("INCYDR_PAGE_SIZE", 500),
+      alertsEnabled: bool("INCYDR_ALERTS_ENABLED", false),
+      notConnectingImmediateDays: number("INCYDR_NOT_CONNECTING_IMMEDIATE_DAYS", 7),
+      digestAfterDays: number("INCYDR_DIGEST_AFTER_DAYS", 1)
     },
     slackWebhookUrl: process.env.SLACK_WEBHOOK_URL ?? "",
     smtp: {
