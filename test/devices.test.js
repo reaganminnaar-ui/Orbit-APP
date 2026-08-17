@@ -24,10 +24,3 @@ test("falls back to normalized hostname", () => {
   assert.equal(result.devices[0].matchMethod, "hostname");
   assert.equal(result.devices[0].status, "matched");
 });
-
-test("preserves the complete Jamf source payload for Orbit", () => {
-  const [device]=jamfDeviceDetails([{id:1,general:{name:"Mac"},hardware:{serialNumber:"ABC",model:"MacBook Pro"},extensionAttributes:[{name:"Asset owner",value:"IT"}],deviceCompliance:[{compliant:true}]}]);
-  assert.equal(device.hardware.model,"MacBook Pro");
-  assert.equal(device.extensionAttributes[0].name,"Asset owner");
-  assert.equal(device.deviceCompliance[0].compliant,true);
-});

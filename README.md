@@ -87,23 +87,6 @@ proposed immediate/digest/dashboard classification. Incydr notifications remain
 disabled unless `INCYDR_ALERTS_ENABLED=true`; this release does not deliver
 Incydr messages, so the flag is a reviewed policy gate for the next phase.
 
-## Expanded Jamf read-only inventory
-
-The Jamf collector requests the full supported computer inventory section set,
-including user and location, disk encryption, extension attributes,
-configuration profiles, local users, certificates, storage, applications,
-updates and other software evidence. It also reads per-computer device
-compliance information.
-
-`GET /api/jamf/catalog` exposes the protected read-only catalogue used by
-Orbit. It covers advanced computer searches, computer groups, departments,
-buildings, macOS configuration profiles, policies, computer and user extension
-attributes, users, inventory collection settings, blueprints and compliance
-benchmarks. The endpoint uses the same `Authorization: Bearer <POLL_SECRET>`
-boundary as `/api/devices`. Every catalogue is collected independently and
-records its own count or safe error, so an unavailable version-specific Jamf
-endpoint cannot interrupt computer inventory or other catalogue reads.
-
 ## Local development
 
 Copy `.env.example` to `.env`, fill in the values, export them, then run:

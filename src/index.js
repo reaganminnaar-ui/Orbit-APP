@@ -8,23 +8,16 @@ import { correlateDevices } from "./devices.js";
 const config = loadConfig();
 const jamf = new JamfClient(config);
 const incydr = config.incydr.url ? new IncydrClient(config) : null;
-let running = false, runStartedAt = null, lastCompletedAt = null, lastResult = null, lastError = null, incydrAgents = [], jamfDevices = [], jamfCatalog = {};
+let running = false, lastResult = null, lastError = null, incydrAgents = [], jamfDevices = [];
 
 async function tick() {
   if (running) return;
   running = true;
-  runStartedAt = new Date().toISOString();
   try {
     const orbitResult = await runOrbit(config, jamf);
     jamfDevices = orbitResult.devices;
     delete orbitResult.devices;
     lastResult = orbitResult;
-    try {
-      jamfCatalog = await jamf.catalog();
-      lastResult.jamfCatalog = Object.fromEntries(Object.entries(jamfCatalog).map(([name, item]) => [name, { ok: item.ok, count: item.count, error: item.error ?? null }]));
-    } catch (error) {
-      lastResult.jamfCatalog = { ok: false, error: error.message };
-    }
     lastError = null;
     if (incydr) {
       try {
@@ -40,24 +33,11 @@ async function tick() {
     console.log("Orbit run complete", lastResult);
   }
   catch (error) { lastError = { message: error.message, at: new Date().toISOString() }; console.error("Orbit run failed", error); }
-  finally {
-    running = false;
-    lastCompletedAt = new Date().toISOString();
-  }
+  finally { running = false; }
 }
 
 createServer(async (request, response) => {
   const requestUrl = new URL(request.url, "http://orbit.local");
-  if (requestUrl.pathname === "/api/jamf/catalog" && request.method === "GET") {
-    if (request.headers.authorization !== `Bearer ${config.pollSecret}`) {
-      response.writeHead(401, { "content-type": "application/json" });
-      response.end(JSON.stringify({ ok: false, error: "Unauthorized" }));
-      return;
-    }
-    response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-    response.end(JSON.stringify({ ok: true, checkedAt: lastCompletedAt, sources: jamfCatalog, summary: lastResult?.jamfCatalog ?? {} }));
-    return;
-  }
   if (requestUrl.pathname === "/api/incydr/agents" && request.method === "GET") {
     if (request.headers.authorization !== `Bearer ${config.pollSecret}`) {
       response.writeHead(401, { "content-type": "application/json" });
@@ -103,19 +83,14 @@ createServer(async (request, response) => {
       response.end(JSON.stringify({ ok: false, error: "Unauthorized" }));
       return;
     }
-    if (running) {
-      response.writeHead(202, { "content-type": "application/json", "cache-control": "no-store" });
-      response.end(JSON.stringify({ ok: true, accepted: false, running: true, startedAt: runStartedAt }));
-      return;
-    }
-    void tick();
-    response.writeHead(202, { "content-type": "application/json", "cache-control": "no-store" });
-    response.end(JSON.stringify({ ok: true, accepted: true, running: true, startedAt: runStartedAt }));
+    await tick();
+    response.writeHead(lastError ? 500 : 200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ ok: !lastError, result: lastResult, error: lastError }));
     return;
   }
   if (requestUrl.pathname !== "/health") { response.writeHead(404).end(); return; }
   response.setHeader("content-type", "application/json");
-  response.end(JSON.stringify({ ok: !lastError, running, runStartedAt, lastCompletedAt, lastResult, lastError }));
+  response.end(JSON.stringify({ ok: !lastError, running, lastResult, lastError }));
 }).listen(config.port, () => console.log(`Orbit health server listening on ${config.port}`));
 
 if (config.runOnStart) void tick();

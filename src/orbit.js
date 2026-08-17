@@ -7,8 +7,7 @@ export async function runOrbit(config, jamf, now = new Date()) {
   const store = stateStore(config);
   const state = await store.load();
   const isFirstRun = !state.lastRunAt;
-  const inventory = await jamf.computers();
-  const computers = typeof jamf.attachCompliance === "function" ? await jamf.attachCompliance(inventory) : inventory;
+  const computers = await jamf.computers();
   let alerts = [];
   if (config.enabled.staleDevices) alerts.push(...staleDeviceAlerts(computers, config.staleDeviceDays, now));
   if (config.enabled.inventoryChanges) { const changes = inventoryChangeAlerts(computers, state.inventory, now); alerts.push(...changes.alerts); state.inventory = changes.next; }
