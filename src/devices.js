@@ -12,6 +12,7 @@ function canonicalHostname(value) {
 
 export function jamfDeviceDetails(computers) {
   return computers.map(computer => ({
+    ...structuredClone(computer),
     jamfId: String(value(computer.id, computer.general?.id) ?? ""),
     deviceName: value(computer.general?.name, computer.name),
     serialNumber: value(computer.hardware?.serialNumber, computer.serialNumber, computer.general?.serialNumber),
@@ -20,7 +21,7 @@ export function jamfDeviceDetails(computers) {
     lastInventoryAt: value(computer.general?.lastInventoryUpdate, computer.lastInventoryUpdate),
     lastContactAt: value(computer.general?.lastContactTime, computer.lastContactTime),
     managed: computer.general?.managed !== false && computer.managed !== false,
-    fileVaultEnabled: value(computer.security?.fileVault2Status, computer.fileVaultEnabled)
+    fileVaultEnabled: value(computer.security?.fileVault2Status, computer.diskEncryption?.fileVault2Status, computer.fileVaultEnabled)
   }));
 }
 
